@@ -1,0 +1,48 @@
+name: Sync secure main with upstream
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: secure-main-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'Arrcc05/hermes-agent'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out fork
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+
+      - name: Merge upstream main while preserving the security bump
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git remote add upstream https://github.com/NousResearch/hermes-agent.git
+          git fetch --no-tags upstream main
+
+          before="$(git rev-parse HEAD)"
+          git merge --no-edit upstream/main
+
+          grep -q '"react-router-dom": "\^7\.16\.0"' apps/desktop/package.json
+          grep -q '"react-router-dom": "\^7\.16\.0"' web/package.json
+          grep -q '"version": "7\.16\.0"' package-lock.json
+
+          after="$(git rev-parse HEAD)"
+          if [[ "$before" != "$after" ]]; then
+            git push origin HEAD:main
+          else
+            echo "Fork is already in sync."
+          fi
